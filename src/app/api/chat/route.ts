@@ -93,11 +93,25 @@ export async function POST(request: NextRequest) {
   }
 
   const rawText = await upstream.text();
+  const contentType = upstream.headers.get("content-type") || "";
+  const looksLikeJson =
+    contentType.includes("application/json") ||
+    rawText.trimStart().startsWith("{") ||
+    rawText.trimStart().startsWith("[");
+
+  if (!looksLikeJson) {
+    return jsonError(
+      "AgentRouter returned a non-JSON response (likely a WAF/CAPTCHA challenge). " +
+        "Try again, switch network, or contact AgentRouter support.",
+      502,
+    );
+  }
+
   let payload: unknown;
   try {
     payload = rawText ? JSON.parse(rawText) : {};
   } catch {
-    payload = { raw: rawText };
+    return jsonError("Failed to parse AgentRouter response as JSON.", 502);
   }
 
   if (!upstream.ok) {
