@@ -86,7 +86,7 @@ export default function Chat() {
         if (!res.ok) {
           const errMsg =
             (data && (data.error as string)) ||
-            `حدث خطأ أثناء الاتصال بالخادم (HTTP ${res.status}).`;
+            `An error occurred while contacting the server (HTTP ${res.status}).`;
           setMessages((prev) => [
             ...prev,
             {
@@ -101,7 +101,7 @@ export default function Chat() {
 
         const reply: string =
           (data && (data.content as string)) ||
-          "لم يتم استلام رد من الذكاء الاصطناعي.";
+          "No response received from the AI.";
 
         setMessages((prev) => [
           ...prev,
@@ -111,7 +111,7 @@ export default function Chat() {
         const errMsg =
           err instanceof Error
             ? err.message
-            : "تعذّر الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.";
+            : "Could not connect to the server. Please check your internet connection.";
         setMessages((prev) => [
           ...prev,
           {
@@ -134,7 +134,7 @@ export default function Chat() {
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       sendMessage(input);
     }

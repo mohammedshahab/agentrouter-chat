@@ -44,6 +44,10 @@ export async function POST(request: NextRequest) {
     return jsonError("Invalid JSON body.", 400);
   }
 
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return jsonError("Request body must be a JSON object.", 400);
+  }
+
   const messages = Array.isArray(body.messages) ? body.messages : [];
   if (messages.length === 0) {
     return jsonError("`messages` must be a non-empty array.", 400);
