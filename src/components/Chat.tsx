@@ -75,7 +75,9 @@ export default function Chat() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             model,
-            messages: history.map(({ role, content }) => ({ role, content })),
+            messages: history
+              .filter((m) => !m.isError)
+              .map(({ role, content }) => ({ role, content })),
           }),
         });
 

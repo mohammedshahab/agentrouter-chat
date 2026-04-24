@@ -43,7 +43,7 @@ Optional overrides:
 
 | Variable                     | Default                       | Purpose                                  |
 | ---------------------------- | ----------------------------- | ---------------------------------------- |
-| `AGENTROUTER_BASE_URL`       | `https://agentrouter.org/v1`  | OpenAI-compatible base URL               |
+| `AGENTROUTER_BASE_URL`       | Cloudflare Worker proxy (see below) | OpenAI-compatible base URL         |
 | `AGENTROUTER_MODEL`          | `gpt-5`                       | Default model used by the `/api/chat` route |
 | `AGENTROUTER_SYSTEM_PROMPT`  | helpful-assistant prompt      | System prompt prepended to every chat    |
 
@@ -67,10 +67,19 @@ npm start
 ## How it works
 
 ```
-Browser  ──fetch──►  /api/chat  ──fetch──►  https://agentrouter.org/v1/chat/completions
-   ▲                    │                              │
-   └────── JSON ────────┴──────── Bearer <KEY> ────────┘
+Browser ─fetch─► /api/chat ─fetch─► Cloudflare Worker proxy ─► agentrouter.org/v1
+   ▲                │                        │                          │
+   └───── JSON ─────┴──── Bearer <KEY> ──────┴──── bypasses the WAF ────┘
 ```
+
+> **Why the proxy?** `agentrouter.org` sits behind an Aliyun WAF that returns a
+> CAPTCHA HTML page for every server-side request (regardless of headers, UA
+> or auth). The default `AGENTROUTER_BASE_URL` points at a Cloudflare Worker
+> that forwards our request to the upstream API and returns its JSON response
+> untouched. If you run your own proxy or want to use another
+> OpenAI-compatible provider (OpenRouter, OpenAI, Groq, Together, …), just
+> set `AGENTROUTER_BASE_URL` and `AGENTROUTER_API_KEY` accordingly — no code
+> changes needed.
 
 - The browser **never** sees your API key — it only talks to your own `/api/chat` route.
 - The server route forwards the message history to AgentRouter's OpenAI-compatible

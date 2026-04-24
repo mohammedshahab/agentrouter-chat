@@ -14,7 +14,9 @@ interface ChatRequestBody {
 
 const AGENTROUTER_BASE_URL =
   process.env.AGENTROUTER_BASE_URL?.replace(/\/+$/, "") ||
-  "https://agentrouter.org/v1";
+  // Cloudflare Worker proxy that forwards to agentrouter.org and bypasses its
+  // Aliyun WAF, which blocks all server-side requests to agentrouter.org.
+  "https://agentrouter-proxy.fbfgbffbfdbd.workers.dev/v1";
 
 const DEFAULT_MODEL = process.env.AGENTROUTER_MODEL || "gpt-5";
 
@@ -131,16 +133,37 @@ export async function POST(request: NextRequest) {
 }
 
 function extractErrorMessage(payload: unknown, status: number): string {
+  let upstreamMessage: string | null = null;
+  let upstreamType: string | null = null;
+
   if (payload && typeof payload === "object") {
     const obj = payload as Record<string, unknown>;
+    if (typeof obj.type === "string") upstreamType = obj.type;
     const err = obj.error;
-    if (typeof err === "string") return err;
-    if (err && typeof err === "object") {
+    if (typeof err === "string") {
+      upstreamMessage = err;
+    } else if (err && typeof err === "object") {
       const eo = err as Record<string, unknown>;
-      if (typeof eo.message === "string") return eo.message;
+      if (typeof eo.message === "string") upstreamMessage = eo.message;
+      if (typeof eo.type === "string" && !upstreamType) upstreamType = eo.type;
     }
-    if (typeof obj.message === "string") return obj.message;
+    if (!upstreamMessage && typeof obj.message === "string") {
+      upstreamMessage = obj.message;
+    }
   }
+
+  if (upstreamType === "unauthorized_client_error") {
+    return (
+      "AgentRouter rejected the request with 'unauthorized client detected'. " +
+      "Their upstream currently allows only approved CLI tools (Claude Code, " +
+      "Codex, etc.) and blocks custom web clients. Contact AgentRouter support " +
+      "or switch to another OpenAI-compatible provider by setting " +
+      "AGENTROUTER_BASE_URL and AGENTROUTER_API_KEY."
+    );
+  }
+
+  if (upstreamMessage) return upstreamMessage;
+
   if (status === 401 || status === 403) {
     return "Authentication with AgentRouter failed. Check the API key.";
   }
