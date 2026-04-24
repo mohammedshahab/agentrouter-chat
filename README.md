@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AgentRouter Chat
 
-## Getting Started
+A minimal, ChatGPT-like chat UI built with **Next.js 16 (App Router)**, **React 19**, **TypeScript** and **Tailwind CSS v4**, powered by the [AgentRouter](https://agentrouter.org/) OpenAI-compatible API.
 
-First, run the development server:
+Features:
+
+- Clean ChatGPT-style chat layout, fully responsive
+- Automatic light / dark mode (follows system preference)
+- Distinct user / AI bubbles with avatars
+- Auto-resizing input; **Enter** to send, **Shift+Enter** for newline
+- Typing indicator while waiting for the AI
+- Clear in-chat error messages on auth / quota / network failures
+- Model picker (`gpt-5`, `glm-4.6`, `glm-4.5`, `deepseek-v3.1`)
+- API key stays on the **server** — never exposed to the browser
+
+---
+
+## Getting started
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure your API key
+
+Copy the example env file and put your AgentRouter API key in it:
+
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local`:
+
+```env
+AGENTROUTER_API_KEY=sk-your-real-key-here
+```
+
+> Get a key from https://agentrouter.org/console/token
+
+Optional overrides:
+
+| Variable                     | Default                       | Purpose                                  |
+| ---------------------------- | ----------------------------- | ---------------------------------------- |
+| `AGENTROUTER_BASE_URL`       | Cloudflare Worker proxy (see below) | OpenAI-compatible base URL         |
+| `AGENTROUTER_MODEL`          | `gpt-5`                       | Default model used by the `/api/chat` route |
+| `AGENTROUTER_SYSTEM_PROMPT`  | helpful-assistant prompt      | System prompt prepended to every chat    |
+
+### 3. Run the dev server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open <http://localhost:3000> and start chatting.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. Production build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## How it works
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+Browser ─fetch─► /api/chat ─fetch─► Cloudflare Worker proxy ─► agentrouter.org/v1
+   ▲                │                        │                          │
+   └───── JSON ─────┴──── Bearer <KEY> ──────┴──── bypasses the WAF ────┘
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+> **Why the proxy?** `agentrouter.org` sits behind an Aliyun WAF that returns a
+> CAPTCHA HTML page for every server-side request (regardless of headers, UA
+> or auth). The default `AGENTROUTER_BASE_URL` points at a Cloudflare Worker
+> that forwards our request to the upstream API and returns its JSON response
+> untouched. If you run your own proxy or want to use another
+> OpenAI-compatible provider (OpenRouter, OpenAI, Groq, Together, …), just
+> set `AGENTROUTER_BASE_URL` and `AGENTROUTER_API_KEY` accordingly — no code
+> changes needed.
 
-## Deploy on Vercel
+- The browser **never** sees your API key — it only talks to your own `/api/chat` route.
+- The server route forwards the message history to AgentRouter's OpenAI-compatible
+  `chat/completions` endpoint with `Authorization: Bearer <AGENTROUTER_API_KEY>`.
+- The assistant's reply is extracted from `choices[0].message.content` and returned
+  to the client.
+- HTTP errors from AgentRouter (401, 403, 429, etc.) are translated into friendly
+  messages that show up as a red error bubble in the chat.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+├── app/
+│   ├── api/
+│   │   └── chat/
+│   │       └── route.ts        # Server route: proxies requests to AgentRouter
+│   ├── globals.css             # Tailwind + design tokens (light/dark)
+│   ├── layout.tsx              # Root layout
+│   └── page.tsx                # Mounts the <Chat/> component
+└── components/
+    └── Chat.tsx                # Client component: chat UI + state
+```
+
+## Security notes
+
+- Never commit `.env.local`; it is git-ignored by default.
+- If you previously shared an API key publicly, **revoke it immediately** in the
+  AgentRouter console and generate a fresh one.
+
+## License
+
+MIT
